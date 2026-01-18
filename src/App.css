@@ -1,0 +1,10 @@
+@import "tailwindcss";
+::view-transition-old(cover) {
+    display: none;
+}
+
+::view-transition-group(root) {
+    animation-duration: 0.1s;
+    animation-timing-function: linear;
+    mix-blend-mode: normal;
+}
