@@ -25,8 +25,9 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 nix = { version = "0.30.1", features = ["signal"] }
-axum = "0.8.8"
 tokio = "1.49.0"
-tower-http = {version="0.6.8", features= ["fs"] }
 tiny_http = "0.12.0"
 constime = "0.4.1"
+symphonia = { version = "0.5.5", features = ['all', 'flac'] }
+dashmap = "6.1.0"
+lofty = {version="0.22.4"}

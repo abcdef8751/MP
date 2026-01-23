@@ -5,14 +5,18 @@ use nix::libc::SECBIT_EXEC_DENY_INTERACTIVE_LOCKED;
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use serde;
+use server::{addr_lock, get_metadata, hash, start_server};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::env;
+use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Read};
 use std::net::SocketAddr;
 use std::os::unix::io;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time;
-use std::{env, string};
 use std::{fs, thread};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -230,7 +234,13 @@ fn player_progress(file: String) -> Result<f32, String> {
             match lines.next() {
                 Some(last) => {
                     let t = format!("0:0:{}", last_prog);
-                    let res = last.split(" ").nth(1).unwrap_or(&t).split(":").enumerate();
+                    let res = last
+                        .trim()
+                        .split(" ")
+                        .nth(1)
+                        .unwrap_or(&t)
+                        .split(":")
+                        .enumerate();
                     let mut sum = 0f32;
                     for (i, x) in res {
                         if let Ok(parsed) = x.parse::<f32>() {
@@ -265,7 +275,7 @@ fn readdir(dir: String) -> Result<Vec<String>, String> {
 fn rprint(arg: serde_json::Value) {
     println!("{:?}", arg);
 }
-static addr_lock: OnceLock<SocketAddr> = OnceLock::new();
+//static addr_lock: OnceLock<SocketAddr> = OnceLock::new();
 #[tauri::command]
 fn media_host_url() -> String {
     addr_lock.wait().to_string()
@@ -273,7 +283,7 @@ fn media_host_url() -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     thread::spawn(|| {
-        server::start_server(&addr_lock);
+        start_server(&addr_lock);
     });
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -292,7 +302,8 @@ pub fn run() {
             player_is_done,
             readdir,
             rprint,
-            media_host_url
+            media_host_url,
+            get_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

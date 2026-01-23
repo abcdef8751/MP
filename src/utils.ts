@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import * as path from "@tauri-apps/api/path";
+import { Accessor, createSignal, onCleanup, Signal } from "solid-js";
 async function println(arg: any): Promise<void> {
   return await invoke("rprint", { arg });
 }
@@ -99,7 +100,7 @@ async function mkdir(path: string): Promise<void> {
 async function exists(path: string): Promise<boolean> {
   return invoke("exists", { path });
 }
-async function get_cover(file: string): Promise<string | undefined> {
+/*async function get_cover(file: string): Promise<string | undefined> {
   let out_dir = await path.join(cache_dir, "images");
   let basename = hash(file) + "_cover.jpg";
   let out_file = await path.join(out_dir, basename);
@@ -119,7 +120,7 @@ async function get_cover(file: string): Promise<string | undefined> {
     }
   }
   return (await get_media_host_url()) + "/images/" + basename;
-}
+}*/
 
 function hash(str: string): string {
   let res = 0n;
@@ -138,16 +139,21 @@ function hash(str: string): string {
   onCleanup(() => URL.revokeObjectURL(url));
   return url;
 }*/
+interface Tags {
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  genre: string | null;
+  year: number | null;
+  comment: string | null;
+}
 interface Metadata {
-  tags: FFProbeTags | undefined;
-  streams: FFProbeStream[];
+  tags: Tags;
   duration_sec: number;
-  duration: [number, number];
   cover_url: string;
-  has_cover: boolean;
 }
 async function readdir(dir: string): Promise<string[]> {
-  let res = await invoke("readdir", { dir });
+  let res = (await invoke("readdir", { dir })) as string[];
   return res;
 }
 
@@ -155,6 +161,31 @@ function format_sec(sec: number): string {
   let minutes = Math.floor(sec / 60);
   let seconds = Math.floor(sec % 60);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function transition(
+  duration: number,
+  range: [number, number],
+  func: (x: number) => number = (x) => x,
+): Accessor<number> {
+  let duration_ms = duration * 1000;
+  let [val, setVal] = createSignal(range[0]);
+  let start = Date.now();
+  let inter = setInterval(
+    () => {
+      let elapsed = Date.now() - start;
+      if (elapsed >= duration_ms) {
+        clearInterval(inter);
+        setVal(range[1]);
+        return;
+      }
+      // console.log(val());
+      setVal(range[0] + (range[1] - range[0]) * func(elapsed / duration_ms));
+    },
+    Math.floor(1000 / 60),
+  );
+  onCleanup(() => clearInterval(inter));
+  return val;
 }
 const audio_exts = [".flac", ".mp3"];
 
@@ -166,7 +197,8 @@ export {
   type CommandResult,
   format_sec,
   hash,
-  get_cover,
+  // get_cover,
+  transition,
   exists,
   mkdir,
   readBytes,
