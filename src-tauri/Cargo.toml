@@ -15,7 +15,7 @@ name = "nev_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [profile.dev]
-opt-level = 3
+opt-level = 2
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -28,6 +28,7 @@ nix = { version = "0.30.1", features = ["signal"] }
 tokio = "1.49.0"
 tiny_http = "0.12.0"
 constime = "0.4.1"
-symphonia = { version = "0.5.5", features = ['all', 'flac'] }
+symphonia = { version = "0.5.5", features = ['all'] }
 dashmap = "6.1.0"
 lofty = {version="0.22.4"}
+rodio = "0.21.1"

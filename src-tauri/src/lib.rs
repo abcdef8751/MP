@@ -1,24 +1,15 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod player;
 mod server;
+use player::{
+    pause_audio, play_audio, player_is_done, player_progress, player_seek, stop_playback,
+};
 
-use nix::libc::SECBIT_EXEC_DENY_INTERACTIVE_LOCKED;
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
 use serde;
-use server::{addr_lock, get_metadata, hash, start_server};
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use server::{addr_lock, get_metadata, start_server};
 use std::env;
-use std::hash::{Hash, Hasher};
-use std::io::{BufRead, BufReader, Read};
-use std::net::SocketAddr;
-use std::os::unix::io;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::sync::{LazyLock, Mutex, OnceLock};
-use std::time;
+use std::process::{Command, Output};
 use std::{fs, thread};
-
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct CommandResult {
     status: i32,
@@ -74,192 +65,7 @@ fn read_bytes(file: String) -> Result<Vec<u8>, String> {
         Err(err) => Err(err.to_string()),
     }
 }
-#[derive(Debug)]
-struct Player {
-    file: String,
-    child: Child,
-    playing: bool,
-    last_prog: f32,
-}
-static mut players: Vec<Player> = vec![];
-#[tauri::command]
-fn play_audio(file: String, start_secs: f32) -> Result<(), String> {
-    unsafe {
-        if let Some(Player { child, playing, .. }) = players.iter_mut().find(|x| *x.file == file) {
-            kill(Pid::from_raw(child.id() as i32), Signal::SIGCONT).unwrap();
-            *playing = true;
-            //child.wait().unwrap();
-            Ok(())
-        } else {
-            let mut child: Child = match Command::new("play")
-                .args([&file, "trim", &start_secs.to_string()])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-            {
-                Ok(child) => child,
-                Err(err) => {
-                    println!(
-                        "Failed to spawn child process from args: {:?}\n{}",
-                        vec![&file, "trim", &start_secs.to_string()],
-                        err
-                    );
-                    std::process::exit(1);
-                }
-            };
-            players.push(Player {
-                file,
-                child,
-                playing: true,
-                last_prog: start_secs as f32,
-            });
-            Ok(())
-        }
-    }
-}
-#[tauri::command]
-fn player_is_done(file: String) -> bool {
-    unsafe {
-        if let Some(Player { child, .. }) = players.iter_mut().find(|x| *x.file == file) {
-            let res = child.try_wait().unwrap();
-            res.is_some()
-        } else {
-            false
-        }
-    }
-}
-#[tauri::command]
-fn pause_audio(file: String) -> Result<(), String> {
-    unsafe {
-        if let Some(Player { child, playing, .. }) = players.iter_mut().find(|x| *x.file == file) {
-            kill(Pid::from_raw(child.id() as i32), Signal::SIGSTOP).unwrap();
-            *playing = false;
-            //child.wait().unwrap();
-            Ok(())
-        } else {
-            Err("Backend Error: Player not found".into())
-        }
-    }
-}
-#[tauri::command]
-fn stop_playback(file: String) -> Result<(), String> {
-    unsafe {
-        if let Some((i, Player { child, .. })) = players
-            .iter_mut()
-            .enumerate()
-            .find(|(i, Player { file: f, .. })| *f == file)
-        {
-            child.kill().unwrap();
-            players.remove(i);
-            Ok(())
-        } else {
-            Err("Backend error: Player not found".into())
-        }
-    }
-}
-#[tauri::command]
-fn player_seek(file: String, time_sec: f32) -> Result<(), String> {
-    unsafe {
-        if let Some((i, Player { playing, child, .. })) = players
-            .iter_mut()
-            .enumerate()
-            .find(|(i, x)| *x.file == file)
-        {
-            //stop_playback(file.clone()).unwrap();
-            //play_audio(file.clone(), time_sec).unwrap();
-            child.kill();
-            players.remove(i);
-            let mut child: Child = match Command::new("play")
-                .args([&file, "trim", &time_sec.to_string()])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-            {
-                Ok(child) => child,
-                Err(err) => panic!("{}", err),
-            };
-            if !*playing {
-                kill(Pid::from_raw(child.id() as i32), Signal::SIGSTOP);
-            }
-            players.push(Player {
-                child,
-                playing: *playing,
-                file,
-                last_prog: time_sec,
-            });
-            Ok(())
-        } else {
-            play_audio(file.clone(), time_sec);
-            Ok(())
-        }
-    }
-}
-const buf_size: usize = 300;
-#[tauri::command]
-fn player_progress(file: String) -> Result<f32, String> {
-    unsafe {
-        if let Some(Player {
-            child,
-            playing,
-            last_prog,
-            ..
-        }) = players.iter_mut().find(|x| *x.file == file)
-        {
-            if !*playing {
-                return Ok(*last_prog);
-            }
-            let mut last = vec![0u8; buf_size];
-            let mut out = vec![0u8; buf_size];
 
-            if let Some(mut stderr) = child.stderr.as_mut() {
-                loop {
-                    last = out.clone();
-                    let read = stderr.read(&mut out).unwrap();
-                    if read < buf_size {
-                        last.extend(out);
-                        out = last;
-                        /*if String::from_utf8_unchecked(out).lines().last().len() >= 50 {
-                            break;
-                        }*/
-                        break;
-                    }
-                }
-            } else {
-                return Ok(0.0);
-            }
-            let string = String::from_utf8_unchecked(out);
-            let mut lines = string.lines().rev();
-            match lines.next() {
-                Some(last) => {
-                    let t = format!("0:0:{}", last_prog);
-                    let res = last
-                        .trim()
-                        .split(" ")
-                        .nth(1)
-                        .unwrap_or(&t)
-                        .split(":")
-                        .enumerate();
-                    let mut sum = 0f32;
-                    for (i, x) in res {
-                        if let Ok(parsed) = x.parse::<f32>() {
-                            sum += parsed * 60f32.powf(2.0 - i as f32);
-                        } else {
-                            return Ok(*last_prog);
-                        }; // random crashing, dont remove print
-                    }
-
-                    *last_prog = sum;
-                    Ok(*last_prog)
-                }
-                None => Ok(0.0),
-            }
-        } else {
-            Err(format!("Failed to find player {} from {:?}", file, players).into())
-        }
-    }
-}
 #[tauri::command]
 fn readdir(dir: String) -> Result<Vec<String>, String> {
     let r = fs::read_dir(dir);

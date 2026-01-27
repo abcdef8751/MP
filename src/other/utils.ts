@@ -1,13 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import * as path from "@tauri-apps/api/path";
-import { Accessor, createSignal, onCleanup, Signal } from "solid-js";
+import { Accessor, createSignal, onCleanup } from "solid-js";
 async function println(arg: any): Promise<void> {
   return await invoke("rprint", { arg });
-}
-const platform = await invoke("platform"); //window.navigator.platform.split(" ")[0].toLowerCase;
+} //window.navigator.platform.split(" ")[0].toLowerCase;
 const ffprobe_path = "/bin/ffprobe";
 const ffmpeg_path = "/bin/ffmpeg";
-const cache_dir = await path.join(await invoke("home_dir"), ".cache/nev");
 interface CommandResult {
   status: number;
   stdout: number[];
@@ -88,7 +85,7 @@ async function readBytes(file: string): Promise<Uint8Array> {
 }
 let media_host_url: string | undefined;
 async function get_media_host_url(): Promise<string> {
-  let res = media_host_url || (await invoke("media_host_url"));
+  let res = (media_host_url || (await invoke("media_host_url")))!;
   if (!res.startsWith("http://")) res = "http://" + res;
   media_host_url = res;
   return res;
@@ -100,28 +97,6 @@ async function mkdir(path: string): Promise<void> {
 async function exists(path: string): Promise<boolean> {
   return invoke("exists", { path });
 }
-/*async function get_cover(file: string): Promise<string | undefined> {
-  let out_dir = await path.join(cache_dir, "images");
-  let basename = hash(file) + "_cover.jpg";
-  let out_file = await path.join(out_dir, basename);
-  try {
-    await mkdir(out_dir);
-  } catch {}
-  // if (await exists(out_file)) return out_file;
-
-  if (!(await exists(out_file))) {
-    try {
-      await invoke("command", {
-        file: ffmpeg_path,
-        args: ["-i", file, "-an", "-map", "0:1", "-c", "copy", out_file],
-      });
-    } catch {
-      return undefined;
-    }
-  }
-  return (await get_media_host_url()) + "/images/" + basename;
-}*/
-
 function hash(str: string): string {
   let res = 0n;
   for (let i = 0; i < str.length; i++) {
@@ -129,29 +104,7 @@ function hash(str: string): string {
   }
   return res.toString(16);
 }
-/*async function msConvertFromSrc(
-  src: string,
-  options?: BlobPropertyBag,
-): Promise<string> {
-  let file = await readBytes(src);
-  let blob = new Blob([file], options);
-  let url = URL.createObjectURL(blob);
-  onCleanup(() => URL.revokeObjectURL(url));
-  return url;
-}*/
-interface Tags {
-  title: string | null;
-  artist: string | null;
-  album: string | null;
-  genre: string | null;
-  year: number | null;
-  comment: string | null;
-}
-interface Metadata {
-  tags: Tags;
-  duration_sec: number;
-  cover_url: string;
-}
+
 async function readdir(dir: string): Promise<string[]> {
   let res = (await invoke("readdir", { dir })) as string[];
   return res;
@@ -187,14 +140,21 @@ function transition(
   onCleanup(() => clearInterval(inter));
   return val;
 }
-const audio_exts = [".flac", ".mp3"];
+
+interface PhosphorIconProps {
+  size?: string | number;
+  weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
+  color?: string;
+  mirrored?: boolean;
+  [prop: string]: any;
+}
 
 export {
-  type Metadata,
   type FFProbeOutput,
   type FFProbeStream,
   type FFProbeFormat,
   type CommandResult,
+  type PhosphorIconProps,
   format_sec,
   hash,
   // get_cover,
@@ -208,5 +168,4 @@ export {
   readdir,
   ffprobe_path,
   ffmpeg_path,
-  audio_exts,
 };
