@@ -6,7 +6,7 @@ use player::{
 };
 
 use serde;
-use server::{addr_lock, get_metadata, start_server};
+use server::{addr_lock, get_metadata, read_dir_with_metadata, start_server};
 use std::env;
 use std::process::{Command, Output};
 use std::{fs, thread};
@@ -110,6 +110,7 @@ pub fn run() {
             rprint,
             media_host_url,
             get_metadata,
+            read_dir_with_metadata
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

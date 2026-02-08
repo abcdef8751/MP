@@ -16,6 +16,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [profile.dev]
 opt-level = 2
+incremental = true
+codegen-units = 256 # Split code into maximal chunks for parallel compilation
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -32,3 +35,4 @@ symphonia = { version = "0.5.5", features = ['all'] }
 dashmap = "6.1.0"
 lofty = {version="0.22.4"}
 rodio = "0.21.1"
+lazy_static = "1.5.0"

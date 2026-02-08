@@ -2190,6 +2190,7 @@ version = "0.1.0"
 dependencies = [
  "constime",
  "dashmap",
+ "lazy_static",
  "lofty",
  "nix",
  "rodio",
