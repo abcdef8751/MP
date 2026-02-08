@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { println } from "./utils";
-import { audio_exts } from "./consts";
+//import { audio_exts } from "./consts";
 
 interface Tags {
   title: string | null;
@@ -16,6 +16,7 @@ interface Metadata {
   tags: Tags;
   duration_sec: number;
   cover_url: string;
+  file: string;
 }
 
 let [cached_metadata, set_cached_metadata] = createStore<{
@@ -29,6 +30,13 @@ async function get_metadata(file: string): Promise<Metadata> {
   return res;
 }
 
+type PathEntry =
+  | { type: "Directory"; data: string }
+  | { type: "File"; data: Metadata };
+
+async function read_dir_with_metadata(dir: string): Promise<PathEntry[]> {
+  return await invoke("read_dir_with_metadata", { dir });
+}
 let [is_playing, set_is_playing] = createSignal(false);
 let [queue, set_queue] = createSignal([
   "/home/rp/Music/Rips/HACHI - DONUT HOLE.flac",
@@ -38,7 +46,6 @@ let [queue, set_queue] = createSignal([
 createEffect(async () => {
   let new_queue: string[] = [];
   for (const file of queue()) {
-    if (!audio_exts.some((x) => file.endsWith(x))) continue;
     if (!cached_metadata[file]) {
       try {
         await get_metadata(file);
@@ -57,6 +64,8 @@ let currently_playing = () => queue()[queue_index()];
 
 export {
   get_metadata,
+  read_dir_with_metadata,
+  type PathEntry,
   type Metadata,
   type Tags,
   cached_metadata,

@@ -18,7 +18,7 @@ import {
   is_playing,
   set_is_playing,
 } from "@/other/metadata";
-import { current_page } from "@/other/state";
+import { current_page, player_full, set_player_full } from "@/other/state";
 function MiniPlayer(): JSXElement {
   let weight: PhosphorIconProps["weight"] = "fill";
   let generic_hover =
@@ -32,7 +32,7 @@ function MiniPlayer(): JSXElement {
   let width_edges = "w-70";
   return (
     <Show when={!metadata.loading}>
-      <div class="absolute left-0 bottom-0 w-full h-1/12 min-h-20 border-t border-t-zinc-500 bg-zinc-900 z-1 flex flex-col justify-between">
+      <div class="absolute left-0 bottom-0 w-full h-1/12 min-h-20 border-t border-t-zinc-500 bg-zinc-900 z-3 flex flex-col justify-between">
         <div class="w-full h-2 absolute -translate-y-4">
           <MiniPlayerSlider />
         </div>
@@ -79,15 +79,17 @@ function MiniPlayer(): JSXElement {
           </div>
           <div class={`flex justify-end items-center h-full ${width_edges}`}>
             <div class="mr-2">
-              {current_page() === "player" ? (
+              {player_full() ? (
                 <CaretDown
                   {...icon_props}
                   class={`w-8 h-8 ${generic_icon_hover}`}
+                  onclick={() => set_player_full(false)}
                 />
               ) : (
                 <CaretUp
                   {...icon_props}
                   class={`w-8 h-8 ${generic_icon_hover}`}
+                  onclick={() => set_player_full(true)}
                 />
               )}
             </div>

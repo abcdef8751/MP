@@ -1,85 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Accessor, createSignal, onCleanup } from "solid-js";
+import {
+  Accessor,
+  createEffect,
+  createSignal,
+  onCleanup,
+  untrack,
+} from "solid-js";
 async function println(arg: any): Promise<void> {
   return await invoke("rprint", { arg });
 } //window.navigator.platform.split(" ")[0].toLowerCase;
-const ffprobe_path = "/bin/ffprobe";
-const ffmpeg_path = "/bin/ffmpeg";
-interface CommandResult {
-  status: number;
-  stdout: number[];
-  stderr: number[];
-  error: string;
-}
-interface FFProbeOutput {
-  streams: FFProbeStream[];
-  format: FFProbeFormat;
-}
 
-interface FFProbeStream {
-  index: number;
-  codec_name: string;
-  codec_long_name: string;
-  codec_type: "audio" | "video" | "subtitle" | "data";
-  codec_tag_string: string;
-  codec_tag: string;
-  width?: number;
-  height?: number;
-  coded_width?: number;
-  coded_height?: number;
-  pix_fmt?: string;
-  display_aspect_ratio?: string;
-  sample_rate?: string;
-  channels?: number;
-  channel_layout?: string;
-  bits_per_sample?: number;
-  r_frame_rate: string;
-  avg_frame_rate: string;
-  time_base: string;
-  duration: string;
-  bit_rate?: string;
-
-  disposition: Record<string, number>;
-  tags?: Record<string, string>;
-}
-
-interface FFProbeFormat {
-  filename: string;
-  nb_streams: number;
-  format_name: string;
-  format_long_name: string;
-  duration: string;
-  size: string;
-  bit_rate: string;
-  tags?: FFProbeTags;
-}
-
-interface FFProbeTags {
-  TITLE?: string;
-  ARTIST?: string;
-  ALBUM?: string;
-  DATE?: string;
-  GENRE?: string;
-  UNSYNCEDLYRICS?: string;
-  [key: string]: string | undefined;
-}
-
-async function ffprobe(file: string): Promise<FFProbeOutput> {
-  let { stdout, stderr, status, error }: CommandResult = await invoke(
-    "command",
-    {
-      file: ffprobe_path,
-      args: "-v quiet -of json -show_format -show_streams"
-        .split(" ")
-        .concat(file),
-    },
-  );
-  if (error) throw error;
-  console.log({ stdout, stderr, status, error });
-  console.log(String.fromCharCode(...stdout));
-  if (status !== 0) throw String.fromCharCode(...stderr);
-  return JSON.parse(String.fromCharCode(...stdout));
-}
 async function readBytes(file: string): Promise<Uint8Array> {
   return new Uint8Array(await invoke("read_bytes", { file }));
 }
@@ -118,29 +48,39 @@ function format_sec(sec: number): string {
 
 function transition(
   duration: number,
-  range: [number, number],
+  target: () => number,
   func: (x: number) => number = (x) => x,
 ): Accessor<number> {
   let duration_ms = duration * 1000;
-  let [val, setVal] = createSignal(range[0]);
-  let start = Date.now();
-  let inter = setInterval(
-    () => {
-      let elapsed = Date.now() - start;
-      if (elapsed >= duration_ms) {
-        clearInterval(inter);
-        setVal(range[1]);
-        return;
-      }
-      // console.log(val());
-      setVal(range[0] + (range[1] - range[0]) * func(elapsed / duration_ms));
-    },
-    Math.floor(1000 / 60),
-  );
-  onCleanup(() => clearInterval(inter));
+  let [val, setVal] = createSignal(target());
+  // let pr = new Promise<void>((res) => {
+  createEffect(() => {
+    let start = Date.now();
+    let final = target();
+    let first = untrack(val);
+    println([final, first]);
+    let inter = setInterval(
+      () => {
+        let elapsed = Date.now() - start;
+        if (elapsed >= duration_ms) {
+          clearInterval(inter);
+          setVal(final);
+          //res();
+          return;
+        }
+        // console.log(val());
+        setVal(first + (final - first) * func(elapsed / duration_ms));
+      },
+      Math.floor(1000 / 60),
+    );
+    onCleanup(() => clearInterval(inter));
+  });
+  //});
   return val;
 }
-
+function filename(path: string): string {
+  return path.split("/").at(-1);
+}
 interface PhosphorIconProps {
   size?: string | number;
   weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
@@ -150,22 +90,15 @@ interface PhosphorIconProps {
 }
 
 export {
-  type FFProbeOutput,
-  type FFProbeStream,
-  type FFProbeFormat,
-  type CommandResult,
   type PhosphorIconProps,
   format_sec,
+  filename,
   hash,
-  // get_cover,
   transition,
   exists,
   mkdir,
   readBytes,
-  ffprobe,
   println,
   get_media_host_url,
   readdir,
-  ffprobe_path,
-  ffmpeg_path,
 };
